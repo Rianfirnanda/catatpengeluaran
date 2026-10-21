@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }} # ambil commit terbaru, bukan commit saat run dijadwalkan
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
@@ -31,7 +33,7 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DATA_KEY: ${{ secrets.DATA_KEY }}
       - name: Nyalakan ulang bot
         run: gh workflow run bot.yml --ref "$GITHUB_REF_NAME"

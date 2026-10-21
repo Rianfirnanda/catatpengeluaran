@@ -3,7 +3,7 @@ name: ringkasan
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 14 * * *" # 21:00 WIB; hari Minggu ikut kirim ringkasan mingguan
+    - cron: "7 14 * * *" # 21:07 WIB (menit 0 paling sibuk di GitHub); hari Minggu ikut kirim ringkasan mingguan + tips hemat
 
 jobs:
   kirim:
@@ -20,3 +20,4 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           DATA_KEY: ${{ secrets.DATA_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
