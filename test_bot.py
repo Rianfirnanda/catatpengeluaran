@@ -88,12 +88,27 @@ answer = {"transaksi": [
     {"jenis": "keluar", "jumlah": -5, "kategori": "Belanja", "keterangan": "x"},
     {"jenis": "pinjam", "jumlah": 5, "kategori": "Belanja", "keterangan": "x"},
     {"jenis": "keluar", "jumlah": 5.5, "kategori": "Belanja", "keterangan": "x"},
-]}
+], "pertanyaan": False}
 sent = []
-bot.post = lambda url, body, headers=None: sent.append(body) or {"status": "completed", "steps": [
-    {"type": "user_input"}, {"type": "model_output", "content": [{"type": "text", "text": json.dumps(answer)}]}]}
-assert bot.extract([{"type": "text", "text": "kopi 18rb"}]) == answer["transaksi"][:1]
+
+
+def gemini_reply(text):
+    return {"status": "completed", "steps": [
+        {"type": "user_input"}, {"type": "thought", "signature": "x"},
+        {"type": "model_output", "content": [{"type": "text", "text": text}]}]}
+
+
+bot.post = lambda url, body, headers=None: sent.append(body) or gemini_reply(json.dumps(answer))
+assert bot.extract([{"type": "text", "text": "kopi 18rb"}]) == (answer["transaksi"][:1], False)
 assert sent[-1]["generation_config"] == {"thinking_level": "low"}  # supaya balasan cepat
+
+# pertanyaan dijawab AI dengan total yang sudah dihitung kode, bukan dicatat sebagai transaksi
+replies = iter([gemini_reply(json.dumps({"transaksi": [], "pertanyaan": True})), gemini_reply("Total Rp 40.000")])
+bot.post = lambda url, body, headers=None: sent.append(body) or next(replies)
+q = {"chat": {"id": 42}, "message_id": 8, "date": int(time.time()), "text": "berapa total pengeluaran hari ini?"}
+assert bot.handle(q) == "💬 Total Rp 40.000" and len(bot.load()) == 3
+assert "Ringkasan yang sudah dihitung" in sent[-1]["input"] and sent[-1]["input"].endswith(q["text"])
+bot.post = lambda url, body, headers=None: sent.append(body) or gemini_reply(json.dumps(answer))
 
 msg = {"chat": {"id": 42}, "message_id": 9, "date": int(time.time()), "text": "kopi 18rb"}
 reply = bot.handle(msg)
