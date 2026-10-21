@@ -20,15 +20,15 @@ def row(t, mid, jenis, jumlah, kategori):
 
 
 # parser nominal & bulan
-assert [bot.parse_rp(s) for s in ("1,5jt", "500rb", "18k", "Rp1.500.000", "2 juta", "0")] == \
-       [1_500_000, 500_000, 18_000, 1_500_000, 2_000_000, 0]
+assert [bot.parse_rp(s) for s in ("1,5jt", "1.5jt", "500rb", "1.500rb", "18k", "Rp1.500.000,00", "2 juta", "0")] == \
+       [1_500_000, 1_500_000, 500_000, 1_500_000, 18_000, 1_500_000, 2_000_000, 0]
 for bad in ("-5", "abc"):
     try:
         bot.parse_rp(bad)
         raise AssertionError(bad)
     except ValueError:
         pass
-assert bot.parse_bulan("2027-06") == bot.parse_bulan("06/2027") == bot.parse_bulan("6-2027") == "2027-06"
+assert bot.parse_bulan("2027-06") == bot.parse_bulan("06/2027") == bot.parse_bulan("6/27") == "2027-06"
 assert bot.cari_kategori("makan") == "Makan & Minum" and bot.cari_kategori("") is None
 
 bot.save([
@@ -66,6 +66,14 @@ target, jatah = bot.rencana(now)
 assert target[0].startswith("🎯 Tabungan Rp 1.500.000 dari target Rp 4.000.000 (37%)"), target
 assert target[1] == "Bulan ini perlu nabung Rp 1.000.000, sudah Rp 500.000", target
 assert jatah == f"💡 Jatah belanja {bot.rp(3_930_000 // 11)}/hari sampai akhir bulan", jatah
+# target sudah terlampaui lalu ambil tabungan: tidak perlu menyisihkan pengganti
+s["target"] = {"jumlah": 500_000, "bulan": "2026-12"}
+bot.save_setting(s)
+bot.save([row("2026-10-21T10:00:00+07:00", 99, "masuk", 700_000, "Tabungan")])  # bersih bulan ini -200rb
+assert bot.rencana(now)[1] == f"💡 Jatah belanja {bot.rp(5_130_000 // 11)}/hari sampai akhir bulan", bot.rencana(now)
+bot.undo()
+s["target"] = {"jumlah": 4_000_000, "bulan": "2026-12"}
+bot.save_setting(s)
 
 # hapus & batal
 assert [r["mid"] for r in bot.hapus([3])] == [4] and len(bot.load()) == 5

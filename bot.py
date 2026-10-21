@@ -210,10 +210,13 @@ def tips(now=None):
 
 def parse_rp(s):
     """'1,5jt' -> 1500000, '500rb'/'500k' -> 500000, 'Rp1.500.000' -> 1500000."""
-    s = s.lower().replace(" ", "").removeprefix("rp")
+    s = re.sub(r",00$", "", s.lower().replace(" ", "").removeprefix("rp"))
     for akhiran, kali in (("juta", 10**6), ("jt", 10**6), ("ribu", 1000), ("rb", 1000), ("k", 1000)):
         if s.endswith(akhiran):
-            n = round(float(s[:-len(akhiran)].replace(",", ".")) * kali)
+            angka = s[:-len(akhiran)]
+            if re.fullmatch(r"\d{1,3}(\.\d{3})+", angka):  # "1.500rb" = 1.500 ribu, bukan 1,5 ribu
+                angka = angka.replace(".", "")
+            n = round(float(angka.replace(",", ".")) * kali)
             break
     else:
         n = int(s.replace(".", "").replace(",", ""))
@@ -226,6 +229,8 @@ def parse_bulan(s):
     """'2027-06', '06/2027', '6-2027' -> '2027-06'."""
     a, b = re.split(r"[-/]", s)
     y, m = (int(a), int(b)) if len(a) == 4 else (int(b), int(a))
+    if y < 100:  # "06/27" = Juni 2027
+        y += 2000
     if not 1 <= m <= 12:
         raise ValueError(s)
     return f"{y:04d}-{m:02d}"
@@ -286,7 +291,7 @@ def rencana(now):
         y, m = map(int, target["bulan"].split("-"))
         sisa_bulan = max(1, y * 12 + m - (now.year * 12 + now.month) + 1)
         perlu = -(-max(0, target["jumlah"] - tabungan(lalu)) // sisa_bulan)  # dibulatkan ke atas
-        wajib = max(0, perlu - ditabung)
+        wajib = max(0, min(perlu, target["jumlah"] - tabungan(lalu)) - ditabung)  # jangan lebih dari kekurangan target
         semua = tabungan(lalu) + ditabung
         out = [f"🎯 Tabungan {rp(semua)} dari target {rp(target['jumlah'])} "
                f"({max(0, semua) * 100 // target['jumlah']}%), tenggat {m:02d}/{y}",
@@ -375,6 +380,8 @@ def perintah(cmd, args):
                 bulan = parse_bulan(args[1]) if jumlah else None
             except (ValueError, IndexError):
                 return "Contoh: /target 10jt 2027-06  (tenggat tahun-bulan; /target 0 untuk menghapus)"
+            if bulan and bulan < f"{now:%Y-%m}":
+                return f"Tenggat {bulan} sudah lewat. Contoh: /target 10jt 2027-06"
             s = load_setting()
             if jumlah:
                 s["target"] = {"jumlah": jumlah, "bulan": bulan}
