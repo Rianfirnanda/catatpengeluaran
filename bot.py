@@ -183,9 +183,9 @@ def image_block(file_id, mime_type):
         return {"type": "image", "data": base64.b64encode(r.read()).decode(), "mime_type": mime_type}
 
 
-def gemini(system, content, schema=None, berpikir="low"):  # default "medium" bikin balasan ~1 menit
+def gemini(system, content, schema=None):
     body = {"model": MODEL, "system_instruction": system, "input": content, "store": False,
-            "generation_config": {"thinking_level": berpikir}}
+            "generation_config": {"thinking_level": "low"}}  # default "medium" bikin balasan ~1-2 menit
     if schema:
         body["response_format"] = {"type": "text", "mime_type": "application/json", "schema": schema}
     r = post(GEMINI_URL, body, {"x-goog-api-key": GEMINI_KEY})
@@ -216,15 +216,14 @@ def tips(now=None):
     rows = [r for r in load() if datetime.fromisoformat(r["t"]) >= now - timedelta(days=28)]
     if not rows:
         return "Belum ada transaksi 4 minggu terakhir untuk dianalisis."
-    return gemini(TIPS_PROMPT, konteks(now, rows), berpikir="medium")
+    return gemini(TIPS_PROMPT, konteks(now, rows))
 
 
 def jawab(pertanyaan, now=None):
     now = now or datetime.now(TZ)
     hitungan = "\n\n".join(ringkasan(p, now) for p in JUDUL)  # total dihitung kode, bukan AI
     data = konteks(now, load()[-1000:])  # ponytail: 1000 transaksi terakhir, cukup untuk beberapa bulan
-    return gemini(TANYA_PROMPT, f"{data}\n\nRingkasan yang sudah dihitung:\n{hitungan}\n\nPertanyaan: {pertanyaan}",
-                  berpikir="medium")
+    return gemini(TANYA_PROMPT, f"{data}\n\nRingkasan yang sudah dihitung:\n{hitungan}\n\nPertanyaan: {pertanyaan}")
 
 
 def parse_rp(s):
@@ -425,6 +424,10 @@ def perintah(cmd, args):
 def handle(msg):
     if str(msg["chat"]["id"]) != CHAT_ID:
         return f"Chat ID kamu: {msg['chat']['id']}\nSimpan sebagai secret TELEGRAM_CHAT_ID lalu jalankan ulang workflow bot."
+    try:
+        tg("sendChatAction", chat_id=CHAT_ID, action="typing")
+    except Exception:
+        pass  # cuma indikator "sedang mengetik"
     text = msg.get("text") or msg.get("caption") or ""
     if text.startswith("/"):
         parts = text.split()
@@ -445,10 +448,6 @@ def handle(msg):
     if not content:
         return "Kirim teks atau foto ya. /bantuan untuk contoh."
 
-    try:
-        tg("sendChatAction", chat_id=CHAT_ID, action="typing")
-    except Exception:
-        pass  # cuma indikator "sedang mengetik"
     items, tanya = extract(content)
     if not items:
         if tanya and text:
