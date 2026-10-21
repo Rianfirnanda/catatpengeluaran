@@ -89,9 +89,11 @@ answer = {"transaksi": [
     {"jenis": "pinjam", "jumlah": 5, "kategori": "Belanja", "keterangan": "x"},
     {"jenis": "keluar", "jumlah": 5.5, "kategori": "Belanja", "keterangan": "x"},
 ]}
-bot.post = lambda url, body, headers=None: {"status": "completed", "steps": [
+sent = []
+bot.post = lambda url, body, headers=None: sent.append(body) or {"status": "completed", "steps": [
     {"type": "user_input"}, {"type": "model_output", "content": [{"type": "text", "text": json.dumps(answer)}]}]}
 assert bot.extract([{"type": "text", "text": "kopi 18rb"}]) == answer["transaksi"][:1]
+assert sent[-1]["generation_config"] == {"thinking_level": "low"}  # supaya balasan cepat
 
 msg = {"chat": {"id": 42}, "message_id": 9, "date": int(time.time()), "text": "kopi 18rb"}
 reply = bot.handle(msg)
