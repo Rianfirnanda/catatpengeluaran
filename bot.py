@@ -48,7 +48,7 @@ Ringkasan: /hari /minggu /bulan
 Budget bulanan: /budget makan 1,5jt  (lihat: /budget)
 Target tabungan: /target 10jt 2027-06  (lihat: /target)
 Tips hemat dari AI: /tips
-Riwayat & hapus: /riwayat  /hapus 12  /batal (pesan terakhir)
+Riwayat & hapus: /riwayat  /hapus 12 15  /batal (pesan terakhir)
 Unduh semua data: /ekspor"""
 
 PROMPT = f"""Kamu mencatat keuangan pribadi (Rupiah). Dari pesan teks, foto struk, atau foto tulisan tangan, ambil semua transaksi uang.
@@ -344,14 +344,14 @@ def perintah(cmd, args):
         rows = list(enumerate(load(), 1))[-15:]
         if not rows:
             return "Belum ada catatan."
-        return "\n".join(f"#{i} {r['t'][8:10]}/{r['t'][5:7]} {baris(r)}" for i, r in rows) + "\n\nHapus satu: /hapus <nomor>"
+        return "\n".join(f"#{i} {r['t'][8:10]}/{r['t'][5:7]} {baris(r)}" for i, r in rows) + "\n\nHapus: /hapus <nomor> [nomor lain]"
     if cmd == "/hapus":
-        n = len(load())
-        if not (args and args[0].lstrip("#").isdigit() and 1 <= int(args[0].lstrip("#")) <= n):
-            return "Nomor tidak ada. Lihat nomornya di /riwayat, lalu kirim misalnya /hapus 12"
-        gone = hapus([int(args[0].lstrip("#")) - 1])
+        n, nomor = len(load()), [a.strip("#,") for a in args]
+        if not nomor or not all(a.isdigit() and 1 <= int(a) <= n for a in nomor):
+            return "Nomor tidak ada. Lihat nomornya di /riwayat, lalu kirim misalnya /hapus 12 15"
+        gone = hapus({int(a) - 1 for a in nomor})  # sekaligus, karena nomor bergeser setelah dihapus
         push("hapus")
-        return "🗑️ Dihapus:\n" + baris(gone[0])
+        return "🗑️ Dihapus:\n" + "\n".join(map(baris, gone)) + "\n\nNomor lain sudah bergeser, cek /riwayat lagi."
     if cmd == "/budget":
         if args:
             try:
@@ -475,8 +475,9 @@ def run():
 
 
 if __name__ == "__main__":
-    if not os.environ.get("DATA_KEY"):
-        sys.exit("Secret DATA_KEY belum diisi")
+    if len(os.environ.get("DATA_KEY", "")) < 20:
+        sys.exit("Secret DATA_KEY belum diisi atau kurang dari 20 karakter")
+    load(), load_setting()  # DATA_KEY salah/berubah -> berhenti sebelum menulis data dengan kunci lain
     if sys.argv[1:] == ["ringkasan"]:
         send(ringkasan("hari"))
         if datetime.now(TZ).weekday() == 6:

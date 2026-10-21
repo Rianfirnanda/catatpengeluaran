@@ -5,7 +5,7 @@ Bot Telegram untuk mencatat pemasukan dan pengeluaran sekaligus membantu menabun
 **Mencatat**
 - Teks bebas: `kopi 18rb`, `gajian 5jt`, `nabung 500rb`, `bensin 30k, parkir 5rb`
 - Foto struk atau foto catatan tulisan tangan
-- `/riwayat` untuk melihat catatan terakhir, `/hapus 12` untuk menghapus satu catatan, `/batal` untuk menghapus isi pesan terakhir
+- `/riwayat` untuk melihat catatan terakhir, `/hapus 12 15` untuk menghapus catatan tertentu, `/batal` untuk menghapus isi pesan terakhir
 
 **Menabung**
 - `/budget makan 1,5jt` mengatur budget bulanan per kategori. Setiap kali kamu mencatat pengeluaran, bot membalas dengan sisa budget kategori itu. Tanda ⚠️ muncul di 80%, 🚨 di 100%.

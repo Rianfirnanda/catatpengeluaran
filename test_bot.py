@@ -69,6 +69,9 @@ assert jatah == f"💡 Jatah belanja {bot.rp(3_930_000 // 11)}/hari sampai akhir
 
 # hapus & batal
 assert [r["mid"] for r in bot.hapus([3])] == [4] and len(bot.load()) == 5
+bot.save([row("2026-10-21T09:00:00+07:00", 6, "keluar", 1, "Lainnya"), row("2026-10-21T09:00:00+07:00", 7, "keluar", 2, "Lainnya")])
+assert "Rp 1 ·" in bot.perintah("/hapus", ["6", "7"]) and len(bot.load()) == 5  # dua nomor sekaligus, sebelum bergeser
+assert [r["mid"] for r in bot.load()][-1] == 5
 assert len(bot.undo()) == 2 and len(bot.load()) == 3  # /batal hapus semua item dari pesan terakhir
 
 # jawaban Gemini diparse dan divalidasi (nominal ngawur dibuang)
