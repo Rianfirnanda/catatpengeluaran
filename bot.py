@@ -59,7 +59,12 @@ PROMPT = f"""Kamu mencatat keuangan pribadi (Rupiah). Dari pesan teks, foto stru
 - Uang yang ditabung/disisihkan ke tabungan: jenis "keluar", kategori "Tabungan". Mengambil uang dari tabungan: jenis "masuk", kategori "Tabungan".
 - kategori salah satu dari: {", ".join(KATEGORI)}.
 - keterangan singkat dalam bahasa Indonesia.
-Jika tidak ada transaksi, kembalikan daftar kosong."""
+Jika tidak ada transaksi, kembalikan daftar kosong.
+pertanyaan: true jika pesan menanyakan atau meminta info tentang keuangan yang sudah dicatat (mis. "berapa total pengeluaran hari ini", "total jajan bulan ini"), bukan mencatat transaksi baru."""
+
+TANYA_PROMPT = """Kamu asisten keuangan pribadi. Jawab pertanyaan pemilik hanya berdasarkan data di bawah.
+Untuk total hari/minggu/bulan, pakai angka dari ringkasan yang sudah dihitung. Kalau harus menjumlah sendiri, hitung dengan teliti.
+Kalau datanya tidak ada, bilang terus terang. Bahasa Indonesia santai dan singkat, tanpa markdown."""
 
 TIPS_PROMPT = """Kamu teman yang paham keuangan pribadi. Dari data transaksi, beri maksimal 3 saran hemat yang konkret dan bisa langsung dilakukan.
 Fokus ke 7 hari terakhir, sebutkan perkiraan penghematannya dalam Rupiah per bulan, dan kaitkan dengan budget atau target tabungan kalau ada.
@@ -77,8 +82,8 @@ SCHEMA = {
         },
         "required": ["jenis", "jumlah", "kategori", "keterangan"],
         "additionalProperties": False,
-    }}},
-    "required": ["transaksi"],
+    }}, "pertanyaan": {"type": "boolean"}},
+    "required": ["transaksi", "pertanyaan"],
     "additionalProperties": False,
 }
 
@@ -191,10 +196,19 @@ def gemini(system, content, schema=None, berpikir="low"):  # default "medium" bi
 
 
 def extract(content):
-    items = json.loads(gemini(PROMPT, content, SCHEMA))["transaksi"]
-    return [t for t in items  # jawaban AI tetap dicek sebelum disimpan
-            if t.get("jenis") in ("masuk", "keluar") and t.get("kategori") in KATEGORI
-            and type(t.get("jumlah")) is int and t["jumlah"] > 0]
+    """(transaksi yang valid, apakah pesannya pertanyaan)."""
+    hasil = json.loads(gemini(PROMPT, content, SCHEMA))
+    items = [t for t in hasil["transaksi"]  # jawaban AI tetap dicek sebelum disimpan
+             if t.get("jenis") in ("masuk", "keluar") and t.get("kategori") in KATEGORI
+             and type(t.get("jumlah")) is int and t["jumlah"] > 0]
+    return items, hasil.get("pertanyaan") is True
+
+
+def konteks(now, rows):
+    s = load_setting()
+    data = "\n".join(f"{r['t'][:16]};{r['jenis']};{r['jumlah']};{r['kategori']};{r['keterangan']}" for r in rows)
+    return (f"Sekarang {now:%Y-%m-%d %H:%M} WIB.\nBudget bulanan: {s['budget']}\nTarget tabungan: {s.get('target')}\n"
+            f"Transaksi (waktu;jenis;jumlah;kategori;keterangan):\n{data}")
 
 
 def tips(now=None):
@@ -202,11 +216,14 @@ def tips(now=None):
     rows = [r for r in load() if datetime.fromisoformat(r["t"]) >= now - timedelta(days=28)]
     if not rows:
         return "Belum ada transaksi 4 minggu terakhir untuk dianalisis."
-    data = "\n".join(f"{r['t'][:10]};{r['jenis']};{r['jumlah']};{r['kategori']};{r['keterangan']}" for r in rows)
-    s = load_setting()
-    return gemini(TIPS_PROMPT, f"Hari ini {now:%Y-%m-%d}.\nBudget bulanan: {s['budget']}\n"
-                               f"Target tabungan: {s.get('target')}\n"
-                               f"Transaksi 4 minggu terakhir (tanggal;jenis;jumlah;kategori;keterangan):\n{data}",
+    return gemini(TIPS_PROMPT, konteks(now, rows), berpikir="medium")
+
+
+def jawab(pertanyaan, now=None):
+    now = now or datetime.now(TZ)
+    hitungan = "\n\n".join(ringkasan(p, now) for p in JUDUL)  # total dihitung kode, bukan AI
+    data = konteks(now, load()[-1000:])  # ponytail: 1000 transaksi terakhir, cukup untuk beberapa bulan
+    return gemini(TANYA_PROMPT, f"{data}\n\nRingkasan yang sudah dihitung:\n{hitungan}\n\nPertanyaan: {pertanyaan}",
                   berpikir="medium")
 
 
@@ -432,8 +449,10 @@ def handle(msg):
         tg("sendChatAction", chat_id=CHAT_ID, action="typing")
     except Exception:
         pass  # cuma indikator "sedang mengetik"
-    items = extract(content)
+    items, tanya = extract(content)
     if not items:
+        if tanya and text:
+            return "💬 " + jawab(text)
         return "Tidak ada transaksi yang terbaca. Coba tulis seperti: kopi 18rb"
     t = datetime.fromtimestamp(msg["date"], TZ).isoformat(timespec="seconds")
     rows = [{"t": t, "mid": msg["message_id"], **i} for i in items]
@@ -465,9 +484,11 @@ def run():
             try:
                 reply = handle(msg)
             except Exception as e:  # jangan cetak isi pesan: log repo publik bisa dilihat orang
-                print("gagal memproses:", type(e).__name__, e.read()[:300] if isinstance(e, urllib.error.HTTPError) else e)
+                detail = (e.read()[:300].decode(errors="replace") if isinstance(e, urllib.error.HTTPError)
+                          else str(e)[:300])
+                print("gagal memproses:", type(e).__name__, detail)
                 reply = ("⏳ Kuota AI gratis sedang habis, coba lagi nanti." if getattr(e, "code", None) == 429
-                         else "⚠️ Gagal memproses pesan ini, coba kirim ulang.")
+                         else f"⚠️ Gagal memproses pesan ini, coba kirim ulang.\n({type(e).__name__}: {detail})")
             try:
                 send(reply, msg["chat"]["id"])
             except Exception as e:
