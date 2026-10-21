@@ -178,8 +178,9 @@ def image_block(file_id, mime_type):
         return {"type": "image", "data": base64.b64encode(r.read()).decode(), "mime_type": mime_type}
 
 
-def gemini(system, content, schema=None):
-    body = {"model": MODEL, "system_instruction": system, "input": content, "store": False}
+def gemini(system, content, schema=None, berpikir="low"):  # default "medium" bikin balasan ~1 menit
+    body = {"model": MODEL, "system_instruction": system, "input": content, "store": False,
+            "generation_config": {"thinking_level": berpikir}}
     if schema:
         body["response_format"] = {"type": "text", "mime_type": "application/json", "schema": schema}
     r = post(GEMINI_URL, body, {"x-goog-api-key": GEMINI_KEY})
@@ -205,7 +206,8 @@ def tips(now=None):
     s = load_setting()
     return gemini(TIPS_PROMPT, f"Hari ini {now:%Y-%m-%d}.\nBudget bulanan: {s['budget']}\n"
                                f"Target tabungan: {s.get('target')}\n"
-                               f"Transaksi 4 minggu terakhir (tanggal;jenis;jumlah;kategori;keterangan):\n{data}")
+                               f"Transaksi 4 minggu terakhir (tanggal;jenis;jumlah;kategori;keterangan):\n{data}",
+                  berpikir="medium")
 
 
 def parse_rp(s):
