@@ -102,6 +102,32 @@ bot.post = lambda url, body, headers=None: sent.append(body) or gemini_reply(jso
 assert bot.extract([{"type": "text", "text": "kopi 18rb"}]) == (answer["transaksi"][:1], False)
 assert sent[-1]["generation_config"] == {"thinking_level": "low"}  # supaya balasan cepat
 
+# Gemini penuh (503): coba ulang sekali, lalu pindah ke model cadangan
+import io
+import urllib.error
+penuh = lambda: urllib.error.HTTPError("u", 503, "x", {}, io.BytesIO(b"{}"))
+hasil = iter([penuh(), penuh(), gemini_reply(json.dumps(answer))])
+models, bot.time.sleep = [], lambda s: None
+
+
+def post_cadangan(url, body, headers=None):
+    models.append(body["model"])
+    r = next(hasil)
+    if isinstance(r, Exception):
+        raise r
+    return r
+
+
+bot.post = post_cadangan
+assert bot.extract([{"type": "text", "text": "kopi 18rb"}])[0] == answer["transaksi"][:1]
+assert models == [bot.MODEL, bot.MODEL, bot.CADANGAN], models
+hasil = iter([urllib.error.HTTPError("u", 400, "x", {}, io.BytesIO(b"{}"))])  # error lain tidak dicoba ulang
+try:
+    bot.extract([{"type": "text", "text": "x"}])
+    raise AssertionError("400 harus diteruskan")
+except urllib.error.HTTPError as e:
+    assert e.code == 400
+
 # pertanyaan dijawab AI dengan total yang sudah dihitung kode, bukan dicatat sebagai transaksi
 replies = iter([gemini_reply(json.dumps({"transaksi": [], "pertanyaan": True})), gemini_reply("Total Rp 40.000")])
 bot.post = lambda url, body, headers=None: sent.append(body) or next(replies)

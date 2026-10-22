@@ -24,7 +24,8 @@ from zoneinfo import ZoneInfo
 from cryptography.fernet import Fernet
 
 TZ = ZoneInfo("Asia/Jakarta")
-MODEL = "gemini-3.8-flash"  # kuota gratis habis? coba "gemini-3.5-flash-lite"
+MODEL = "gemini-3.8-flash"
+CADANGAN = "gemini-3.5-flash-lite"  # dipakai kalau MODEL sedang penuh (503) atau kuotanya habis (429)
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 DATA = "data.enc"  # satu baris terenkripsi per transaksi, aman disimpan di repo publik
 SETTING = "setting.enc"  # budget & target tabungan, terenkripsi
@@ -184,11 +185,18 @@ def image_block(file_id, mime_type):
 
 
 def gemini(system, content, schema=None):
-    body = {"model": MODEL, "system_instruction": system, "input": content, "store": False,
+    body = {"system_instruction": system, "input": content, "store": False,
             "generation_config": {"thinking_level": "low"}}  # default "medium" bikin balasan ~1-2 menit
     if schema:
         body["response_format"] = {"type": "text", "mime_type": "application/json", "schema": schema}
-    r = post(GEMINI_URL, body, {"x-goog-api-key": GEMINI_KEY})
+    for i, model in enumerate((MODEL, MODEL, CADANGAN)):  # coba ulang sekali, lalu pindah ke model cadangan
+        try:
+            r = post(GEMINI_URL, {**body, "model": model}, {"x-goog-api-key": GEMINI_KEY})
+            break
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 503) or i == 2:
+                raise
+            time.sleep(2)
     if r.get("status") != "completed":
         raise RuntimeError(f"status={r.get('status')} {r.get('errors')}")
     return "".join(c.get("text", "") for s in r.get("steps", []) if s.get("type") == "model_output"
