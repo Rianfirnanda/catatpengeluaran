@@ -45,7 +45,7 @@ Selesai. Bot hanya melayani Chat ID kamu dan mengabaikan orang lain.
 ## Perlu diketahui
 
 - **Privasi Gemini gratis:** di free tier, Google boleh memakai isi permintaan untuk meningkatkan produknya. Artinya foto struk, teks catatan, dan data transaksi yang dikirim untuk `/tips` bisa dilihat Google. Data yang tersimpan di repo tetap terenkripsi.
-- **Kuota Gemini gratis terbatas.** Batas per menit dan per hari bisa dilihat di [AI Studio](https://aistudio.google.com/rate-limit). Kalau kuota habis, bot akan memberi tahu. Kamu bisa menunggu, atau ganti `MODEL` di `bot.py` menjadi `gemini-3.5-flash-lite`.
+- **Kuota Gemini gratis terbatas.** Batas per menit dan per hari bisa dilihat di [AI Studio](https://aistudio.google.com/rate-limit). Kalau `gemini-3.8-flash` sedang penuh atau kuotanya habis, bot otomatis mencoba lagi lalu pindah ke model cadangan `gemini-3.5-flash-lite`. Kalau keduanya tidak bisa dipakai, bot akan memberi tahu.
 - **Aturan GitHub:** menjalankan bot nonstop di GitHub Actions termasuk wilayah abu-abu, dan GitHub bisa saja menghentikannya. Kalau itu terjadi, `bot.py` tetap bisa dijalankan di server mana pun dengan `python bot.py`.
 - **Log publik:** log Actions di repo publik bisa dilihat orang lain. Bot sengaja tidak pernah menulis isi pesan atau nominal ke log.
 - **Ringkasan bisa telat:** jadwal cron GitHub kadang telat 5–30 menit.
